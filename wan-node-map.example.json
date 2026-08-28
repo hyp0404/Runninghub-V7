@@ -1,0 +1,38 @@
+{
+  "character_image": {
+    "nodeId": "替换为角色参考图节点ID",
+    "fieldName": "image"
+  },
+  "motion_video": {
+    "nodeId": "替换为动作参考视频节点ID",
+    "fieldName": "video"
+  },
+  "prompt": {
+    "nodeId": "可选：提示词节点ID",
+    "fieldName": "text"
+  },
+  "width": {
+    "nodeId": "可选：宽度节点ID",
+    "fieldName": "value"
+  },
+  "height": {
+    "nodeId": "可选：高度节点ID",
+    "fieldName": "value"
+  },
+  "fps": {
+    "nodeId": "可选：帧率节点ID",
+    "fieldName": "value"
+  },
+  "pose_strength": {
+    "nodeId": "可选：姿态强度节点ID",
+    "fieldName": "value"
+  },
+  "pose_method": {
+    "nodeId": "可选：姿态算法节点ID",
+    "fieldName": "value"
+  },
+  "camera_motion": {
+    "nodeId": "可选：运镜节点ID",
+    "fieldName": "value"
+  }
+}
