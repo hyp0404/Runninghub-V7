@@ -1,4 +1,4 @@
-# Wan2.2 Animate V7：GitHub 与 Railway 部署手册
+# Wan2.2 Animate V7：ChatGPT MCP、GitHub 与 Railway 部署手册
 
 ## 1. 这套部署实际做什么
 
@@ -8,7 +8,7 @@
 你的前端/剪辑程序 → Railway API 服务 → RunningHub Wan2.2 Animate V7 → 输出视频 URL
 ```
 
-Railway 不是 GPU 推理机，也不安装 ComfyUI 或 Wan2.2 权重。它只是一个安全的 API 中转层：隐藏 RunningHub API Key、接收参考图和动作视频、读取应用节点、提交任务、轮询输出。生成任务仍消耗 RunningHub 的 RH/算力。
+Railway 不是 GPU 推理机，也不安装 ComfyUI 或 Wan2.2 权重。它是 API/MCP 中转层：隐藏 RunningHub API Key、接收参考图和动作视频、读取应用节点、提交任务、轮询输出。生成任务仍消耗 RunningHub 的 RH/算力。
 
 这个设计尤其适合你当前的打斗视频流程：先把一场 90 秒戏拆成多个 6–10 秒动作段，每段用角色图和动作参考视频驱动，最后在剪辑软件中统一节奏、色彩和配乐。
 
@@ -31,6 +31,7 @@ Railway 不是 GPU 推理机，也不安装 ComfyUI 或 Wan2.2 权重。它只�
 ├── src/
 │   ├── config.js
 │   ├── http-error.js
+│   ├── mcp.js
 │   ├── node-mapper.js
 │   ├── openapi.js
 │   ├── runninghub.js
@@ -46,6 +47,7 @@ Railway 不是 GPU 推理机，也不安装 ComfyUI 或 Wan2.2 权重。它只�
 - `railway.json`：指定 Dockerfile 构建、启动命令、健康检查和失败重启。
 - `src/runninghub.js`：上传素材、提交 AI 应用、查询输出。
 - `src/node-mapper.js`：从应用当前的 `nodeInfoList` 自动识别角色图、动作视频等字段。
+- `src/mcp.js`：为 ChatGPT 提供 `/mcp` Streamable HTTP 端点与 Wan 工具。
 - `config/wan-node-map.example.json`：自动识别不唯一时的显式映射示例。
 
 ## 3. 上传到 GitHub
@@ -96,6 +98,8 @@ git push -u origin main
 | `RUNNINGHUB_BASE_URL` | 否 | `https://www.runninghub.cn` | RunningHub 中国站 API 根地址 |
 | `WAN_INSTANCE_TYPE` | 否 | `default` | 默认实例；需要 48G 时按账户和接口支持改为 `plus` |
 | `SERVICE_API_TOKEN` | 强烈建议 | 32 位以上随机串 | 保护 `/api/*`，调用时用 Bearer Token |
+| `MCP_ALLOW_NO_AUTH` | ChatGPT No Auth 必需 | `true` | 允许 ChatGPT 无认证初始化 `/mcp`；仅建议个人测试 |
+| `MCP_MIN_GENERATION_INTERVAL_SECONDS` | 否 | `30` | 匿名 MCP 创建生成任务的最短间隔 |
 | `PUBLIC_BASE_URL` | 否 | `https://xxx.up.railway.app` | 用于返回状态 URL 与动态 OpenAPI |
 | `MAX_UPLOAD_MB` | 否 | `500` | 每个上传文件的大小上限 |
 | `RUNNINGHUB_TIMEOUT_MS` | 否 | `180000` | 单次 RunningHub HTTP 请求超时；不是生成总时长 |
@@ -105,7 +109,61 @@ git push -u origin main
 
 建议用密码生成器产生 `SERVICE_API_TOKEN`，不要使用 RunningHub API Key 作为服务访问令牌。
 
-## 6. 首次部署的节点映射
+## 6. 在 ChatGPT 创建 WINV7 App
+
+先确认 GitHub/Railway 已部署 v1.1.0，并在 Railway Variables 新增：
+
+```text
+MCP_ALLOW_NO_AUTH=true
+MCP_MIN_GENERATION_INTERVAL_SECONDS=30
+```
+
+访问健康检查：
+
+```text
+https://你的域名/health
+```
+
+必须能看到：
+
+```json
+{
+  "ok": true,
+  "version": "1.1.0",
+  "mcp": {"endpoint":"/mcp","noAuthenticationEnabled":true}
+}
+```
+
+然后在 ChatGPT 开发者模式中创建 App：
+
+```text
+Name: WINV7
+Description: RunningHub Wan2.2 Animate V7 动作迁移与任务查询
+Connection: Server URL
+Server URL: https://你的Railway域名/mcp
+Authentication: No Auth
+```
+
+勾选风险确认后点击 Create。连接成功应扫描到四个工具：
+
+| 工具 | 作用 | 是否消耗生成额度 |
+|---|---|---:|
+| `wan_check_mapping` | 检查 V7 当前节点 | 否 |
+| `wan_create_animation` | 从角色图 URL 和动作视频 URL 创建任务 | 是 |
+| `wan_get_task` | 查询任务和输出 URL | 否 |
+| `wan_account_status` | 查询账户状态 | 否 |
+
+注意：`/mcp` 是 MCP POST 端点，直接在浏览器地址栏打开会得到 405，这是正常的；浏览器健康检查请使用 `/health`。
+
+### ChatGPT 素材限制
+
+当前无 UI 的 MCP 工具接收 HTTPS 素材 URL。角色图片和动作视频必须能被 Railway 直接下载。本地附件、`sandbox:` 地址、电脑磁盘路径不能直接传给 Railway。如果 ChatGPT 没有提供可下载 URL，请先上传到对象存储或其他能生成短期签名 HTTPS URL 的位置。
+
+### No Auth 风险
+
+`MCP_ALLOW_NO_AUTH=true` 意味着知道 `/mcp` 地址的人可能调用生成工具并消耗 RH。当前增加了最短生成间隔，但它不等于身份认证。个人测试完成后，如果准备分享或发布 App，应升级到 OAuth 2.1，而不是长期公开 No Auth。
+
+## 7. 首次部署的节点映射
 
 RunningHub AI 应用的节点 ID 会随应用复制、作者升级或工作流修改而变化，因此项目不把角色图和动作视频的节点 ID 写死。这也是本项目与普通“一次性脚本”的主要区别。
 
@@ -161,7 +219,7 @@ WAN_NODE_MAP_JSON={"character_image":{"nodeId":"角色图节点ID","fieldName":"
 
 必须使用 `/api/wan/nodes` 返回的原值，不要照抄示例数字。保存 Railway 变量并重新部署后，再检查 `/api/wan/mapping`。
 
-## 7. 创建生成任务
+## 8. 创建生成任务
 
 最小请求：
 
@@ -209,7 +267,7 @@ curl -X POST "https://你的域名/api/wan/start" \
 
 仍须先从 `/api/wan/nodes` 获取真实节点和字段。
 
-## 8. 查询进度和结果
+## 9. 查询进度和结果
 
 ```bash
 curl -H "Authorization: Bearer 你的SERVICE_API_TOKEN" \
@@ -228,7 +286,7 @@ curl -H "Authorization: Bearer 你的SERVICE_API_TOKEN" \
 
 不要以 1–2 秒频率轮询。动作视频生成通常耗时较长，建议每 30–60 秒查询一次，前端设置 20–40 分钟的任务级超时，而不是把一次 HTTP 请求一直挂住。
 
-## 9. 打斗视频的输入建议
+## 10. 打斗视频的输入建议
 
 为解决背景跳变和动作断裂，部署只是一部分，素材组织更重要：
 
@@ -241,7 +299,7 @@ curl -H "Authorization: Bearer 你的SERVICE_API_TOKEN" \
 7. 运镜与人物动作分开控制。先用固定或轻跟拍镜头获得动作连贯性，再在剪辑阶段加推拉摇移。
 8. 90 秒成片建议生成 12–16 个短片段，最后统一调色、环境声、剑鸣和配乐。
 
-## 10. 常见故障
+## 11. 常见故障
 
 ### `/health` 返回 503
 
@@ -283,7 +341,11 @@ Authorization: Bearer 你的SERVICE_API_TOKEN
 
 这是旧版 `Dockerfile` 单独执行 `COPY config ./config`，但 GitHub 仓库没有上传 `config` 目录造成的。v1.0.1 已改成 `COPY . .`，不再依赖可选目录。把新版 `Dockerfile` 覆盖到仓库根目录，提交后重新部署即可。
 
-## 11. 本地验证
+### ChatGPT 显示 `Error creating connector`
+
+先打开 `/health` 确认版本是 `1.1.0`，且 `noAuthenticationEnabled` 为 `true`。旧版只有 REST API，没有 `/mcp`，即使地址写成 `/mcp` 也一定创建失败。确认 GitHub 中存在 `src/mcp.js`，`package.json` 中存在 `@modelcontextprotocol/sdk` 和 `zod`，Railway 重新部署后再创建。
+
+## 12. 本地验证
 
 ```bash
 cp .env.example .env
@@ -299,7 +361,7 @@ curl http://localhost:3000/health
 curl -H "Authorization: Bearer 测试Token" http://localhost:3000/api/wan/mapping
 ```
 
-## 12. 升级策略
+## 13. 升级策略
 
 - 如果只是应用节点变动：优先更新 Railway 的 `WAN_NODE_MAP_JSON`，不必改 GitHub 源码。
 - 如果你复制或魔改了应用：修改 `WAN_WEBAPP_ID`，重新检查映射。

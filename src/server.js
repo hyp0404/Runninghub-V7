@@ -8,6 +8,7 @@ import { config, assertRuntimeConfig } from "./config.js";
 import { HttpError } from "./http-error.js";
 import { applyRawOverrides, applyRoleValues, publicNode, resolveNodeMap } from "./node-mapper.js";
 import { buildOpenApi } from "./openapi.js";
+import { registerMcpRoutes } from "./mcp.js";
 import { normalizeOutputs, RunningHubClient } from "./runninghub.js";
 
 await fs.mkdir(config.tempDirectory, { recursive: true });
@@ -76,10 +77,18 @@ async function cleanupFiles(files = {}) {
 
 app.get("/health", (_req, res) => {
   const missing = assertRuntimeConfig();
-  res.status(missing.length ? 503 : 200).json({ ok: !missing.length, service: "wan22-animate-v7-runninghub", missing });
+  res.status(missing.length ? 503 : 200).json({
+    ok: !missing.length,
+    service: "wan22-animate-v7-runninghub-mcp",
+    version: "1.1.0",
+    mcp: { endpoint: "/mcp", noAuthenticationEnabled: config.mcpAllowNoAuth },
+    missing
+  });
 });
 
 app.get("/openapi.json", (req, res) => res.json(buildOpenApi(publicUrl(req))));
+
+registerMcpRoutes(app);
 
 app.use("/api", authenticate);
 

@@ -10,6 +10,12 @@ function integer(name, fallback) {
   return Number.isFinite(value) ? value : fallback;
 }
 
+function boolean(name, fallback = false) {
+  const value = process.env[name]?.trim().toLowerCase();
+  if (!value) return fallback;
+  return ["1", "true", "yes", "on"].includes(value);
+}
+
 function loadNodeMap() {
   if (process.env.WAN_NODE_MAP_JSON?.trim()) {
     return JSON.parse(process.env.WAN_NODE_MAP_JSON);
@@ -33,6 +39,8 @@ export const config = {
   wanInstanceType: process.env.WAN_INSTANCE_TYPE?.trim() || "default",
   publicBaseUrl: (process.env.PUBLIC_BASE_URL || "").replace(/\/$/, ""),
   serviceApiToken: process.env.SERVICE_API_TOKEN?.trim() || "",
+  mcpAllowNoAuth: boolean("MCP_ALLOW_NO_AUTH", false),
+  mcpMinGenerationIntervalMs: integer("MCP_MIN_GENERATION_INTERVAL_SECONDS", 30) * 1000,
   maxUploadBytes: integer("MAX_UPLOAD_MB", 500) * 1024 * 1024,
   requestTimeoutMs: integer("RUNNINGHUB_TIMEOUT_MS", 180000),
   corsOrigins: (process.env.CORS_ORIGINS || "").split(",").map((item) => item.trim()).filter(Boolean),
