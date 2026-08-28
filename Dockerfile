@@ -6,9 +6,8 @@ WORKDIR /app
 COPY package.json package-lock.json ./
 RUN npm ci --omit=dev --no-audit --no-fund
 
-COPY src ./src
-COPY config ./config
-COPY openapi.yaml README.md DEPLOYMENT_GUIDE_CN.md ./
+# 复制仓库中实际存在的文件，避免可选的 config 目录未上传时构建失败。
+COPY . .
 
 USER node
 EXPOSE 3000

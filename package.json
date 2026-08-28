@@ -1,6 +1,6 @@
 {
   "name": "wan22-animate-v7-runninghub-railway",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "private": true,
   "description": "GitHub/Railway adapter for the RunningHub Wan2.2 Animate V7 AI app",
   "type": "module",

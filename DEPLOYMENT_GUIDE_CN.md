@@ -279,6 +279,10 @@ Authorization: Bearer 你的SERVICE_API_TOKEN
 
 确认 Railway 服务连接的是正确仓库和分支，并在 Deployments 中查看最新提交；必要时点击 Redeploy。
 
+### Docker 构建提示 `"/config": not found`
+
+这是旧版 `Dockerfile` 单独执行 `COPY config ./config`，但 GitHub 仓库没有上传 `config` 目录造成的。v1.0.1 已改成 `COPY . .`，不再依赖可选目录。把新版 `Dockerfile` 覆盖到仓库根目录，提交后重新部署即可。
+
 ## 11. 本地验证
 
 ```bash
