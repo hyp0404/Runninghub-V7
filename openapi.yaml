@@ -1,0 +1,80 @@
+openapi: 3.1.0
+info:
+  title: Wan2.2 Animate V7 RunningHub Railway Adapter
+  version: 1.0.0
+  description: 上传角色参考图与动作参考视频，提交 RunningHub AI 应用任务并查询结果。部署后请优先使用 /openapi.json，它会自动写入实际域名。
+servers:
+  - url: https://YOUR-RAILWAY-DOMAIN
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+paths:
+  /health:
+    get:
+      summary: Railway 健康检查
+      responses:
+        "200":
+          description: 服务正常
+  /api/wan/mapping:
+    get:
+      summary: 检查当前 AI 应用节点映射，不创建生成任务
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: 节点映射与候选节点
+  /api/wan/start:
+    post:
+      summary: 上传素材并启动 Wan2.2 Animate V7
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [character_image, motion_video]
+              properties:
+                character_image:
+                  type: string
+                  format: binary
+                motion_video:
+                  type: string
+                  format: binary
+                prompt:
+                  type: string
+                width:
+                  type: integer
+                height:
+                  type: integer
+                fps:
+                  type: integer
+                pose_strength:
+                  type: number
+                pose_method:
+                  type: string
+                camera_motion:
+                  type: string
+                node_overrides:
+                  type: string
+                  description: JSON 数组，元素含 nodeId、fieldName、fieldValue
+      responses:
+        "202":
+          description: 任务已提交
+  /api/wan/status/{taskId}:
+    get:
+      summary: 查询任务状态和输出地址
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: taskId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: 任务状态
